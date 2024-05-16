@@ -1,5 +1,5 @@
 export async function fetchDonations(callback) {
-  const data = await fetch("/donations");
-  const json = await data.json();
-  callback(json);
+  const res = await fetch("/donations");
+  const data = await res.json();
+  callback(data);
 }

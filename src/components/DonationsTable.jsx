@@ -15,9 +15,16 @@ export default function DonationsTable() {
   const [editID, setEditID] = useState(null);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortOrder, setSortOrder] = useState("asc");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [errorColumn, setErrorColumn] = useState(null);
 
   const updateDonations = () => fetchDonations(setDonations);
-
+  const refreshState = () => {
+    setErrorMessage("");
+    setErrorColumn(null);
+    setEditID(null);
+  };
   // fetch donations from backend
   useEffect(() => {
     updateDonations();
@@ -26,6 +33,11 @@ export default function DonationsTable() {
   useEffect(() => {
     setDonations(sortByColumn(donations, sortColumn, sortOrder));
   }, [sortColumn, sortOrder]);
+
+  // whenever donations is updated clear all errors and edit states
+  useEffect(() => {
+    refreshState();
+  }, [donations]);
 
   // when you click on a column it will sort that column in asc order, if you click the same column again it will alternate between asc and desc order.
   // when you click on a different column at anypoint, restart sorting order to asc and sort that column with that order instead
@@ -46,10 +58,10 @@ export default function DonationsTable() {
         method: "DELETE",
         body: JSON.stringify({ id: id }),
       });
-      const { message } = await res.json();
     } catch (err) {
       console.error(id, "deletion failed");
-      throw new Error(err);
+      setErrorMessage(err);
+      return;
     }
     updateDonations();
   }
@@ -60,7 +72,9 @@ export default function DonationsTable() {
   }
 
   // save edits on existing donations
-  async function submitEditHandler(id) {
+  async function submitEditHandler(e, id) {
+    setIsLoading(true);
+    e.preventDefault();
     // get form data and put into FormData
     const row = document.querySelector(`#donation${id}`);
     const formData = new FormData();
@@ -78,13 +92,21 @@ export default function DonationsTable() {
         method: "PUT",
         body: formData,
       });
-      const { message } = await res.json();
+      if (!res.ok) {
+        const errData = await res.json();
+        setErrorMessage(`Update failed: ${errData.error}`);
+        setErrorColumn(errData.col || "all");
+        setIsLoading(false);
+        return;
+      }
       setEditID(null);
+      updateDonations();
+      setIsLoading(false);
     } catch (err) {
-      console.error(err);
-      throw new Error(id, "update failed");
+      setIsLoading(false);
+      setErrorMessage(`Update ${id} failed: ${err.message}`);
+      return;
     }
-    updateDonations();
   }
 
   // turn off edit mode
@@ -95,6 +117,11 @@ export default function DonationsTable() {
   return (
     <div className="overflow-x-auto w-full">
       <table className="table text-md md:text-xl w-full">
+        {errorMessage && (
+          <caption class="caption-top text-error text-sm text-left pl-4">
+            {errorMessage}
+          </caption>
+        )}
         <thead className="text-xl">
           <tr>
             {[
@@ -135,7 +162,11 @@ export default function DonationsTable() {
                         name="donorName"
                         type="text"
                         placeholder="Full Name"
-                        className="input input-bordered w-full"
+                        className={`input input-bordered capitalize w-full ${
+                          errorColumn === "all" || errorColumn === "donor_name"
+                            ? "input-error"
+                            : ""
+                        } basis-3/12 placeholder:opacity-[0.5]`}
                         defaultValue={donation["donor_name"]}
                       />
                     </td>
@@ -143,7 +174,12 @@ export default function DonationsTable() {
                       <select
                         defaultValue={donation["donation_type"]}
                         name="donationType"
-                        className="select select-bordered w-full"
+                        className={`select select-bordered w-full ${
+                          errorColumn === "all" ||
+                          errorColumn === "donation_type"
+                            ? "select-error"
+                            : ""
+                        } basis-3/12`}
                       >
                         <option value="" className="hidden">
                           Donation Type
@@ -159,13 +195,21 @@ export default function DonationsTable() {
                         name="quantity"
                         defaultValue={donation["quantity"]}
                         placeholder="Quantity"
-                        className="input input-bordered w-full"
+                        className={`input input-bordered w-full ${
+                          errorColumn === "all" || errorColumn === "quantity"
+                            ? "input-error"
+                            : ""
+                        } basis-2/12 placeholder:opacity-[0.5]`}
                       />
                     </td>
                     <td>
                       <input
                         type="date"
-                        className="input input-bordered w-full"
+                        className={`input input-bordered w-full ${
+                          errorColumn === "all" || errorColumn === "date"
+                            ? "input-error"
+                            : ""
+                        } basis-4/12 placeholder:opacity-[0.5]`}
                         name="date"
                         placeholder="12/30/2024"
                         defaultValue={getDate(donation["date"])}
@@ -173,13 +217,15 @@ export default function DonationsTable() {
                     </td>
                     <td className="flex gap-2 py-2">
                       <button
+                        disabled={isLoading}
                         className="btn btn-success min-h-10 max-h-10 w-10 edit-done p-2"
                         aria-label="submit donation edits"
-                        onClick={(e) => submitEditHandler(donation["id"])}
+                        onClick={(e) => submitEditHandler(e, donation["id"])}
                       >
                         <DoneIcon />
                       </button>
                       <button
+                        disabled={isLoading}
                         className="btn btn-error min-h-10 max-h-10 w-10 edit-cancel p-2"
                         onClick={(e) => cancelEditHandler(donation["id"])}
                         aria-label="cancel donation edits"
@@ -191,7 +237,7 @@ export default function DonationsTable() {
                 ) : (
                   <>
                     {/* when not in edit mode, use plain text */}
-                    <td>{donation["donor_name"]}</td>
+                    <td className="capitalize">{donation["donor_name"]}</td>
                     <td className="capitalize">{donation["donation_type"]}</td>
                     <td>{donation["quantity"]}</td>
                     <td>{getDate(donation["date"])}</td>

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const { rows } = await sql`select * from donations`;
+  const { rows } = await sql`select * from donations order by id desc`;
   return NextResponse.json(rows);
 }
 
@@ -15,23 +15,35 @@ export async function POST(request) {
   const date = formData.get("date");
 
   if (!donorName || donorName.trim().length === 0) {
-    throw new Error("Please enter your name");
+    return NextResponse.json(
+      { error: "Invalid name", col: "donor_name" },
+      { status: 400 }
+    );
   }
   if (!donationType || donationType.trim().length === 0) {
-    throw new Error("Please select a donation type");
+    return NextResponse.json(
+      { error: "Invalid donation type", col: "donation_type" },
+      { status: 400 }
+    );
   }
   if (!quantity || isNaN(parseInt(quantity))) {
-    throw new Error("Please enter a valid quantity");
+    return NextResponse.json(
+      { error: "Invalid quantity", col: "quantity" },
+      { status: 400 }
+    );
   }
   if (!date) {
-    throw new Error("Please select a date");
+    return NextResponse.json(
+      { error: "Invalid date", col: "date" },
+      { status: 400 }
+    );
   }
 
   try {
     const { rows } =
       await sql`INSERT INTO donations (donor_name, donation_type, quantity, date) VALUES (${donorName}, ${donationType}, ${quantity}, ${date})`;
   } catch (err) {
-    throw new Error(err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
   redirect("/");
 }
@@ -47,28 +59,40 @@ export async function PUT(request) {
 
   // validations
   if (donorName.trim().length === 0) {
-    throw new Error("Please enter your name");
+    return NextResponse.json(
+      { error: "Invalid name", col: "donor_name" },
+      { status: 400 }
+    );
   }
 
   if (donationType.trim().length === 0) {
-    throw new Error("Please select a donation type");
+    return NextResponse.json(
+      { error: "Invalid donation type", col: "donation_type" },
+      { status: 400 }
+    );
   }
 
   if (isNaN(parseInt(quantity))) {
-    throw new Error("Please enter a valid quantity");
+    return NextResponse.json(
+      { error: "Invalid quantity", col: "quantity" },
+      { status: 400 }
+    );
   }
 
   if (!date) {
-    throw new Error("Please select a date");
+    return NextResponse.json(
+      { error: "Invalid date", col: "date" },
+      { status: 400 }
+    );
   }
 
   try {
     const { rows } =
       await sql`UPDATE donations set donor_name=${donorName}, donation_type=${donationType}, quantity=${quantity}, date=${date} where id=${id}`;
   } catch (err) {
-    throw new Error(err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-  return Response.json({ message: `updated donation ${id}` });
+  return NextResponse.json({ message: `updated donation ${id}` });
 }
 
 // delete donation using db id
@@ -78,7 +102,7 @@ export async function DELETE(request) {
   try {
     await sql`DELETE from donations where id=${id}`;
   } catch (err) {
-    throw new Error(err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-  return Response.json({ message: "deletion complete" });
+  return NextResponse.json({ message: "deletion complete" });
 }
